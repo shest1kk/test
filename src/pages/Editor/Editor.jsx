@@ -47,6 +47,8 @@ const Editor = () => {
   const [isModalFilterOpen, setIsModalFilterOpen] = useState(false);
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
 
+  const [showImageChoice, setShowImageChoice] = useState(true);
+
   const canvas = useRef();
   const context = useRef();
   const animationFrameId = useRef(null);
@@ -56,6 +58,40 @@ const Editor = () => {
 
   const imageObj = new Image();
   imageObj.src = image;
+
+  useEffect(() => {
+    const savedImage = localStorage.getItem('lastEditedImage');
+    if (savedImage && !image) {
+      setShowImageChoice(true);
+    } else {
+      setShowImageChoice(false);
+    }
+  }, [image]);
+
+  const handleContinueEditing = () => {
+    const savedImage = localStorage.getItem('lastEditedImage');
+    if (savedImage) {
+      setImage(savedImage);
+    }
+    setShowImageChoice(false);
+  };
+
+  const handleLoadNewImage = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImage(event.target.result);
+        localStorage.setItem('lastEditedImage', event.target.result);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+    setShowImageChoice(false);
+  };
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -93,12 +129,14 @@ const Editor = () => {
     img.src = image;
     img.crossOrigin = "anonymous";
 
-    const workspace = document.querySelector(".workspace");
-    const { offsetWidth: workspaceWidth, offsetHeight: workspaceHeight } = workspace;
-    const maxWidth = workspaceWidth - 100;
-    const maxHeight = workspaceHeight - 100;
-
     img.onload = () => {
+      const workspace = document.querySelector(".workspace");
+      if (!workspace) return;
+
+      const { offsetWidth: workspaceWidth, offsetHeight: workspaceHeight } = workspace;
+      const maxWidth = workspaceWidth - 100;
+      const maxHeight = workspaceHeight - 100;
+
       const widthScale = maxWidth / img.width;
       const heightScale = maxHeight / img.height;
       const newScaleFactor = Math.min(widthScale, heightScale);
@@ -108,8 +146,10 @@ const Editor = () => {
       const scaledHeight = img.height * (scaleFactor / 100);
 
       const canvasElement = canvas.current;
+      if (!canvasElement) return;
+
       context.current = canvasElement.getContext("2d");
-      context.imageSmoothingEnabled = true;
+      context.current.imageSmoothingEnabled = true;
       img.willReadFrequently = true;
 
       canvasElement.width = workspaceWidth;
@@ -169,7 +209,10 @@ const Editor = () => {
   const [currentColor, setCurrentColor] = useState("");
 
   const handleMouseMove = useCallback((e) => {
-    const rect = canvas.current.getBoundingClientRect();
+    const canvasElement = canvas.current;
+    if (!canvasElement) return;
+
+    const rect = canvasElement.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
@@ -178,7 +221,7 @@ const Editor = () => {
 
       // Add color picking logic when the pipette tool is active
       if (toolActive === "pipette") {
-        const ctx = canvas.current.getContext('2d');
+        const ctx = canvasElement.getContext('2d');
         const pixelData = ctx.getImageData(x, y, 1, 1).data;
         const color = `rgb(${pixelData[0]}, ${pixelData[1]}, ${pixelData[2]})`;
         setCurrentColor(color);
@@ -268,6 +311,8 @@ const Editor = () => {
 
   const handleDownload = () => {
     const canvasRef = canvas.current;
+    if (!canvasRef) return;
+
     const context = canvasRef.getContext("2d");
 
     const img = new Image();
@@ -302,10 +347,15 @@ const Editor = () => {
 
   const handleCanvasClick = (event) => {
     const canvasRef = canvas.current;
+    if (!canvasRef) return;
+
     const { offsetX: x, offsetY: y } = event.nativeEvent;
     
-    const paddingW = document.querySelector(".workspace").offsetWidth - dimensions.width;
-    const paddingH = document.querySelector(".workspace").offsetHeight - dimensions.height;
+    const workspace = document.querySelector(".workspace");
+    if (!workspace) return;
+
+    const paddingW = workspace.offsetWidth - dimensions.width;
+    const paddingH = workspace.offsetHeight - dimensions.height;
 
     if (toolActive === "pipette") {
       const coordinates = {
@@ -319,6 +369,7 @@ const Editor = () => {
   const updateImage = (image) => {
     console.log(image);
     setImage(image);
+    localStorage.setItem('lastEditedImage', image);
   };
 
   useEffect(() => {
@@ -327,21 +378,51 @@ const Editor = () => {
     return () => document.body.removeEventListener("keydown", handleKeyDownEvent);
   }, [toolActive, canvasTranslation]);
 
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (image) {
+        localStorage.setItem('lastEditedImage', image);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [image]);
+
+  if (showImageChoice) {
+    return (
+      <div className="image-choice" style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        textAlign: 'center'
+      }}>
+        <h2>Выберите действие:</h2>
+        <button onClick={handleContinueEditing} style={{margin: '10px'}}>Вернуться к редактированию последнего изображения</button>
+        <button onClick={handleLoadNewImage} style={{margin: '10px'}}>Загрузить новое изображение</button>
+      </div>
+    );
+  }
+
   return (
     <section className="editor">
       <div className="editor__menu-bar menu-bar">
         <div className="menu-bar__actions">
-          <ButtonIcon link="/">Главная</ButtonIcon>
+          <ButtonIcon link="/" onClick={() => localStorage.removeItem('lastEditedImage')}>Главная</ButtonIcon>
           {image && (
             <>
               <ButtonIcon title="Скачать" onClick={handleDownload}>Скачать</ButtonIcon>
-              <ButtonIcon title="Масштабирование" onClick={openModal}>Масштабировать</ButtonIcon>
+              {/* <ButtonIcon title="Масштабирование" onClick={openModal}>Масштабировать</ButtonIcon>
               <ButtonIcon title="Кривые" onClick={openCurvesModal}>Кривые</ButtonIcon>
-              <ButtonIcon title="Фильтрация" onClick={openFilterModal}>Фильтрация</ButtonIcon>
+              <ButtonIcon title="Фильтрация" onClick={openFilterModal}>Фильтрация</ButtonIcon> */}
             </>
           )}
         </div>
-        {image && (
+        {/* {image && (
           <div className="menu-bar__regulators">
             <div className="menu-bar__size">
               <p className="menu-bar__desc">Масштабирование изображения в %</p>
@@ -356,7 +437,7 @@ const Editor = () => {
               <span>{scaleFactor}%</span>
             </div>
           </div>
-        )}
+        )} */}
       </div>
       <div className="editor__tool-panel tool-panel">
         {["cursor", "pipette", "hand"].map((tool) => (

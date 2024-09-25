@@ -6,14 +6,11 @@ import { ImageProvider } from './ImageProvider';
 
 // Главный компонент приложения
 function App() {
-  
   return (
-    
     <ImageProvider>
       <MainRoutes />  
     </ImageProvider>
   )
 }
-
 
 export default App

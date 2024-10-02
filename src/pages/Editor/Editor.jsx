@@ -438,8 +438,8 @@ const Editor = () => {
           {image && (
             <>
               <ButtonIcon title="Скачать" onClick={handleDownload}>Скачать</ButtonIcon>
-              {/* <ButtonIcon title="Масштабирование" onClick={openModal}>Масштабировать</ButtonIcon>
-              <ButtonIcon title="Кривые" onClick={openCurvesModal}>Кривые</ButtonIcon>
+              <ButtonIcon title="Масштабирование" onClick={openModal}>Масштабировать</ButtonIcon>
+              {/* <ButtonIcon title="Кривые" onClick={openCurvesModal}>Кривые</ButtonIcon>
               <ButtonIcon title="Фильтрация" onClick={openFilterModal}>Фильтрация</ButtonIcon> */}
             </>
           )}

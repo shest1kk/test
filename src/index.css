@@ -40,8 +40,11 @@ body {
   place-items: center;
   min-width: 320px;
   height: 100vh;
-
   overflow: hidden;
+}
+
+body.dark-mode {
+  color: #ffffff;
 }
 
 h1 {
@@ -93,7 +96,6 @@ button:focus-visible {
   button {
     background-color: #f0f0f0;
   }
-
 }
 
 .visually-hidden {
@@ -107,4 +109,10 @@ button:focus-visible {
   clip-path: inset(100%);
   clip: rect(0 0 0 0);
   overflow: hidden;
+}
+
+/* Ensure modal text is not affected by dark mode */
+.modal,
+.modal * {
+  color: inherit;
 }

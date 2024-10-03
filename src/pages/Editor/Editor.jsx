@@ -26,6 +26,8 @@ import {
 import { Menu, MenuItem } from '@mui/material';
 import TelegramIcon from '@mui/icons-material/Telegram';
 import { calculateFileSize } from "@utils/FileSize/fileSize";
+import UndoIcon from '@mui/icons-material/Undo';
+import RedoIcon from '@mui/icons-material/Redo';
 
 const Editor = () => {
   const { image, setImage } = useContext(ImageContext);
@@ -67,6 +69,9 @@ const Editor = () => {
 
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
+
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
@@ -383,22 +388,28 @@ const Editor = () => {
 
     canvasRef.toBlob((blob) => {
       const file = new File([blob], "image.png", { type: "image/png" });
-      if (navigator.share) {
-        navigator.share({
-          files: [file],
-          title: 'Поделиться изображением',
-          text: 'Отправить изображение через Telegram',
-        }).then(() => {
-          console.log('Успешно отправлено');
-        }).catch((error) => {
-          console.log('Ошибка при отправке', error);
-        });
-      } else {
-        // Fallback for browsers that don't support Web Share API
-        const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}`;
-        window.open(telegramUrl, '_blank');
-      }
+      
+      // Create a temporary URL for the file
+      const fileUrl = URL.createObjectURL(file);
+      
+      // Construct the Telegram share URL
+      const telegramUrl = `tg://msg_ext_share_url?url=${encodeURIComponent(fileUrl)}`;
+      
+      // Try to open the Telegram app
+      window.location.href = telegramUrl;
+      
+      // If the Telegram app doesn't open after a short delay, fall back to web version
+      setTimeout(() => {
+        const webTelegramUrl = `https://t.me/share/url?url=${encodeURIComponent(fileUrl)}`;
+        window.open(webTelegramUrl, '_blank');
+      }, 500);
+
+      // Clean up the temporary URL after a delay
+      setTimeout(() => {
+        URL.revokeObjectURL(fileUrl);
+      }, 60000); // Clean up after 1 minute
     }, 'image/png');
+    
     handleClose();
   };
 
@@ -435,11 +446,39 @@ const Editor = () => {
     }
   };
 
+  const addToHistory = (newImage) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(newImage);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+      setImage(history[historyIndex - 1]);
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+      setImage(history[historyIndex + 1]);
+    }
+  };
+
+  useEffect(() => {
+    if (image && (history.length === 0 || image !== history[historyIndex])) {
+      addToHistory(image);
+    }
+  }, [image]);
+
   const updateImage = (newImage, newFileSize) => {
     console.log(newImage);
     setImage(newImage);
     setFileSize(formatFileSize(newFileSize));
     localStorage.setItem('lastEditedImage', newImage);
+    addToHistory(newImage);
   };
 
   useEffect(() => {
@@ -485,6 +524,7 @@ const Editor = () => {
           <ButtonIcon link="/" onClick={() => localStorage.removeItem('lastEditedImage')}>Главная</ButtonIcon>
           {image && (
             <>
+              
               <ButtonIcon title="Экспорт" onClick={handleExportClick}>Экспорт</ButtonIcon>
               <Menu
                 anchorEl={anchorEl}
@@ -501,6 +541,12 @@ const Editor = () => {
               <ButtonIcon title="Масштабирование" onClick={openModal}>Масштабировать</ButtonIcon>
               {/* <ButtonIcon title="Кривые" onClick={openCurvesModal}>Кривые</ButtonIcon>
               <ButtonIcon title="Фильтрация" onClick={openFilterModal}>Фильтрация</ButtonIcon> */}
+              <ButtonIcon title="Отменить" onClick={undo} disabled={historyIndex <= 0}>
+                <UndoIcon />
+              </ButtonIcon>
+              <ButtonIcon title="Повторить" onClick={redo} disabled={historyIndex >= history.length - 1}>
+                <RedoIcon />
+              </ButtonIcon>
             </>
           )}
           <ButtonIcon title={isDarkMode ? "Светлая тема" : "Темная тема"} onClick={toggleTheme}>

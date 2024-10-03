@@ -23,6 +23,10 @@ import {
   calculateContrast,
 } from "@utils/RonvertColours/ronvertColours";
 
+import { Menu, MenuItem } from '@mui/material';
+import TelegramIcon from '@mui/icons-material/Telegram';
+import { calculateFileSize } from "@utils/FileSize/fileSize";
+
 const Editor = () => {
   const { image, setImage } = useContext(ImageContext);
 
@@ -60,6 +64,15 @@ const Editor = () => {
   imageObj.src = image;
 
   const [isDarkMode, setIsDarkMode] = useState(false);  // Changed to false for light mode by default
+
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  };
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
@@ -186,7 +199,7 @@ const Editor = () => {
       );
 
       setDimensions({ width: scaledWidth, height: scaledHeight });
-      setFileSize(Math.floor((img.src.length / 1024) * 0.77));
+      calculateFileSize(img.src).then(size => setFileSize(formatFileSize(size)));
 
       const handleWheel = (event) => {
         event.preventDefault();
@@ -331,7 +344,15 @@ const Editor = () => {
     };
   }, []);
 
-  const handleDownload = () => {
+  const handleExportClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleDownload = (format) => {
     const canvasRef = canvas.current;
     if (!canvasRef) return;
 
@@ -345,14 +366,40 @@ const Editor = () => {
       canvasRef.width = img.width;
       canvasRef.height = img.height;
       context.drawImage(img, 0, 0);
-      const url = canvasRef.toDataURL();
+      const url = canvasRef.toDataURL(format === 'JPG' ? 'image/jpeg' : 'image/png');
       const a = document.createElement("a");
       document.body.appendChild(a);
       a.href = url;
-      a.download = "editedImage.png";
+      a.download = `editedImage.${format.toLowerCase()}`;
       a.click();
       document.body.removeChild(a);
     };
+    handleClose();
+  };
+
+  const handleTelegramShare = () => {
+    const canvasRef = canvas.current;
+    if (!canvasRef) return;
+
+    canvasRef.toBlob((blob) => {
+      const file = new File([blob], "image.png", { type: "image/png" });
+      if (navigator.share) {
+        navigator.share({
+          files: [file],
+          title: 'Поделиться изображением',
+          text: 'Отправить изображение через Telegram',
+        }).then(() => {
+          console.log('Успешно отправлено');
+        }).catch((error) => {
+          console.log('Ошибка при отправке', error);
+        });
+      } else {
+        // Fallback for browsers that don't support Web Share API
+        const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}`;
+        window.open(telegramUrl, '_blank');
+      }
+    }, 'image/png');
+    handleClose();
   };
 
   const showPreview = (value) => setShowBg(value);
@@ -388,10 +435,11 @@ const Editor = () => {
     }
   };
 
-  const updateImage = (image) => {
-    console.log(image);
-    setImage(image);
-    localStorage.setItem('lastEditedImage', image);
+  const updateImage = (newImage, newFileSize) => {
+    console.log(newImage);
+    setImage(newImage);
+    setFileSize(formatFileSize(newFileSize));
+    localStorage.setItem('lastEditedImage', newImage);
   };
 
   useEffect(() => {
@@ -437,7 +485,19 @@ const Editor = () => {
           <ButtonIcon link="/" onClick={() => localStorage.removeItem('lastEditedImage')}>Главная</ButtonIcon>
           {image && (
             <>
-              <ButtonIcon title="Скачать" onClick={handleDownload}>Скачать</ButtonIcon>
+              <ButtonIcon title="Экспорт" onClick={handleExportClick}>Экспорт</ButtonIcon>
+              <Menu
+                anchorEl={anchorEl}
+                open={open}
+                onClose={handleClose}
+              >
+                <MenuItem onClick={() => handleDownload('PNG')}>PNG</MenuItem>
+                <MenuItem onClick={() => handleDownload('JPG')}>JPG</MenuItem>
+                <MenuItem onClick={handleTelegramShare}>
+                  <TelegramIcon style={{ marginRight: '8px' }} />
+                  Telegram
+                </MenuItem>
+              </Menu>
               <ButtonIcon title="Масштабирование" onClick={openModal}>Масштабировать</ButtonIcon>
               {/* <ButtonIcon title="Кривые" onClick={openCurvesModal}>Кривые</ButtonIcon>
               <ButtonIcon title="Фильтрация" onClick={openFilterModal}>Фильтрация</ButtonIcon> */}
@@ -573,7 +633,7 @@ const Editor = () => {
         {image && (
           <>
             <span className="status-bar__text">Разрешение: {Math.round(dimensions.width)}&nbsp;x&nbsp;{Math.round(dimensions.height)}&nbsp;px</span>
-            <span className="status-bar__text">Размер файла: {fileSize}&nbsp;Кб</span>
+            <span className="status-bar__text">Размер файла: {fileSize}</span>
             <span className="status-bar__text">Координаты: x&nbsp;{cursor.x}; y&nbsp;{cursor.y}</span>
           </>
         )}

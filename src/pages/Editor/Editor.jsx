@@ -73,28 +73,36 @@ const Editor = () => {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
+  const [imageCoords, setImageCoords] = useState({ x: null, y: null });
+
+  const [isMouseWheelDown, setIsMouseWheelDown] = useState(false);
+  const [previousTool, setPreviousTool] = useState("cursor");
+
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / 1048576).toFixed(1) + ' MB';
   };
 
+  // Эффект для загрузки сохраненной темы из localStorage
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
       setIsDarkMode(savedTheme === 'dark');
     } else {
-      setIsDarkMode(false);  // Set to false instead of checking system preference
-      localStorage.setItem('theme', 'light');  // Save light theme as default
+      setIsDarkMode(false);  // Устанавливаем false вместо проверки системных настроек
+      localStorage.setItem('theme', 'light');  // Сохраняем светлую тему по умолчанию
     }
   }, []);
 
+  // Эффект для применения темы к body и сохранения ее в localStorage
   useEffect(() => {
     document.body.classList.toggle('dark-mode', isDarkMode);
     document.body.classList.toggle('light-mode', !isDarkMode);
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
+  // Функция для переключения между светлой и темной темами
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
   };
@@ -162,6 +170,7 @@ const Editor = () => {
     console.log("Selected scaling method: Бикубический"); // Log the selected scaling method
   };
 
+  // Эффект для обработки загрузки изображения и настройки холста
   useEffect(() => {
     if (!image) return;
 
@@ -179,8 +188,11 @@ const Editor = () => {
 
       const widthScale = maxWidth / img.width;
       const heightScale = maxHeight / img.height;
-      const newScaleFactor = Math.min(widthScale, heightScale);
-      if (scaleFactor === 0) setScaleFactor(newScaleFactor);
+      const newScaleFactor = Math.min(widthScale, heightScale) * 100;
+      
+      if (scaleFactor === 0) {
+        setScaleFactor(newScaleFactor);
+      }
 
       const scaledWidth = img.width * (scaleFactor / 100);
       const scaledHeight = img.height * (scaleFactor / 100);
@@ -190,22 +202,28 @@ const Editor = () => {
 
       context.current = canvasElement.getContext("2d");
       context.current.imageSmoothingEnabled = true;
-      img.willReadFrequently = true;
 
       canvasElement.width = workspaceWidth;
       canvasElement.height = workspaceHeight;
-      context.current.clearRect(0, 0, canvasElement.width, canvasElement.height);
-      context.current.drawImage(
-        img,
-        canvasTranslation.x + (maxWidth - scaledWidth) / 2 + 50,
-        canvasTranslation.y + (maxHeight - scaledHeight) / 2 + 50,
-        scaledWidth,
-        scaledHeight
-      );
+
+      const drawImage = () => {
+        context.current.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        context.current.drawImage(
+          img,
+          canvasTranslation.x + (maxWidth - scaledWidth) / 2 + 50,
+          canvasTranslation.y + (maxHeight - scaledHeight) / 2 + 50,
+          scaledWidth,
+          scaledHeight
+        );
+        requestAnimationFrame(drawImage);
+      };
+
+      drawImage();
 
       setDimensions({ width: scaledWidth, height: scaledHeight });
       calculateFileSize(img.src).then(size => setFileSize(formatFileSize(size)));
 
+      // Обработчик события колесика мыши для масштабирования
       const handleWheel = (event) => {
         event.preventDefault();
         const delta = event.deltaY;
@@ -213,7 +231,7 @@ const Editor = () => {
         const currentIndex = scaleSteps.indexOf(scaleFactor);
         let newIndex = currentIndex;
 
-        if (delta < 0) { // Change direction for zooming in
+        if (delta < 0) { // Изменение направления для увеличения
           newIndex = Math.min(currentIndex + 1, scaleSteps.length - 1);
         } else {
           newIndex = Math.max(currentIndex - 1, 0);
@@ -222,6 +240,7 @@ const Editor = () => {
         setScaleFactor(scaleSteps[newIndex]);
       };
 
+      // Обработчик события касания для масштабирования на мобильных устройствах
       const handleTouchZoom = (event) => {
         if (event.touches.length === 2) {
           const touch1 = event.touches[1];
@@ -230,7 +249,7 @@ const Editor = () => {
             (touch1.clientX - touch2.clientX) ** 2 +
             (touch1.clientY - touch2.clientY) ** 2
           );
-          const newScaleFactor = Math.max(10, Math.min(300, 200 / distance)); // Adjust scaling factor based on distance
+          const newScaleFactor = Math.max(10, Math.min(300, 200 / distance)); // Настройка коэффициента масштабирования на основе расстояния
           setScaleFactor(newScaleFactor);
         }
       };
@@ -248,6 +267,7 @@ const Editor = () => {
 
   const [currentColor, setCurrentColor] = useState("");
 
+  // Функция для обработки движения мыши
   const handleMouseMove = useCallback((e) => {
     const canvasElement = canvas.current;
     if (!canvasElement) return;
@@ -256,8 +276,19 @@ const Editor = () => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-      setCursor({ x, y });
+    setCursor({ x, y });
+
+    // Calculate image position and dimensions
+    const imageWidth = dimensions.width * (scaleFactor / 100);
+    const imageHeight = dimensions.height * (scaleFactor / 100);
+    const imageX = (rect.width - imageWidth) / 2 + canvasTranslation.x;
+    const imageY = (rect.height - imageHeight) / 2 + canvasTranslation.y;
+
+    // Check if cursor is over the image
+    if (x >= imageX && x <= imageX + imageWidth && y >= imageY && y <= imageY + imageHeight) {
+      const imageRelativeX = Math.round((x - imageX) * (dimensions.width / imageWidth));
+      const imageRelativeY = Math.round((y - imageY) * (dimensions.height / imageHeight));
+      setImageCoords({ x: imageRelativeX, y: imageRelativeY });
 
       // Add color picking logic when the pipette tool is active
       if (toolActive === "pipette") {
@@ -266,53 +297,55 @@ const Editor = () => {
         const color = `rgb(${pixelData[0]}, ${pixelData[1]}, ${pixelData[2]})`;
         setCurrentColor(color);
       }
+    } else {
+      setImageCoords({ x: null, y: null });
     }
 
-    if (isDragging && (toolActive === "hand" || isMouseWheel)) {
+    if (isDragging && (toolActive === "hand" || isMouseWheelDown)) {
       const dx = e.clientX - rect.left - cursor.x;
       const dy = e.clientY - rect.top - cursor.y;
       updateTranslation(animationFrameId, canvasTranslation, setCanvasTranslation, dx, dy, dimensions.width, dimensions.height, scaleFactor);
     }
-  }, [isDragging, toolActive, isMouseWheel, cursor.x, cursor.y, canvasTranslation, dimensions.width, dimensions.height, scaleFactor]);
+  }, [isDragging, toolActive, isMouseWheelDown, cursor.x, cursor.y, canvasTranslation, dimensions.width, dimensions.height, scaleFactor]);
 
   const handleKeyDownEvent = (e) => handleKeyDown(toolActive, canvasTranslation, setCanvasTranslation, e);
   const handleKeyUpEvent = (e) => handleKeyUp(toolActive, canvasTranslation, setCanvasTranslation, e);
-  const handleMouseUpEvent = () => {
-    handleMouseUp(setIsDragging);
-    setIsMouseDown(false);
-    if (!isMouseWheel && selectedTool !== "hand" && selectedTool !== "pipette") {
-      setToolActive("cursor");
-      setSelectedTool("cursor");
+  const handleMouseUpEvent = (e) => {
+    if (e.button === 1) { // Middle mouse button
+      handleMouseWheelUp(e);
+    } else {
+      handleMouseUp(setIsDragging);
+      setIsMouseDown(false);
     }
   };
-  const handleMouseDownEvent = () => {
+  const handleMouseDownEvent = (e) => {
     setIsMouseDown(true);
-    if (selectedTool === "hand" || isMouseWheel) {
-      setToolActive("hand");
+    if (e.button === 1) { // Middle mouse button
+      handleMouseWheelDown(e);
+    } else if (selectedTool === "hand") {
       setIsDragging(true);
     }
   };
 
   const handleMouseWheelDown = (e) => {
     if (e.button === 1) { // Middle mouse button
-      setIsMouseWheel(true);
+      e.preventDefault(); // Prevent default scrolling behavior
+      setIsMouseWheelDown(true);
+      setPreviousTool(toolActive);
       setToolActive("hand");
-      setSelectedTool("hand");
       setIsDragging(true);
     }
   };
 
   const handleMouseWheelUp = (e) => {
     if (e.button === 1) { // Middle mouse button
-      setIsMouseWheel(false);
-      if (selectedTool !== "hand") {
-        setToolActive("cursor");
-        setSelectedTool("cursor");
-      }
+      setIsMouseWheelDown(false);
+      setToolActive(previousTool);
       setIsDragging(false);
     }
   };
 
+  // Эффект для добавления обработчиков событий клавиатуры
   useEffect(() => {
     const handleKeyDownShortcut = (event) => {
       switch (event.code) {
@@ -337,17 +370,19 @@ const Editor = () => {
     window.addEventListener("keydown", handleKeyDownShortcut);
     const canvasElement = canvas.current;
     if (canvasElement) {
-      canvasElement.addEventListener("mousedown", handleMouseWheelDown);
-      canvasElement.addEventListener("mouseup", handleMouseWheelUp);
+      canvasElement.addEventListener("mousedown", handleMouseDownEvent);
+      canvasElement.addEventListener("mouseup", handleMouseUpEvent);
+      canvasElement.addEventListener("mouseleave", handleMouseUpEvent);
     }
     return () => {
       window.removeEventListener("keydown", handleKeyDownShortcut);
       if (canvasElement) {
-        canvasElement.removeEventListener("mousedown", handleMouseWheelDown);
-        canvasElement.removeEventListener("mouseup", handleMouseWheelUp);
+        canvasElement.removeEventListener("mousedown", handleMouseDownEvent);
+        canvasElement.removeEventListener("mouseup", handleMouseUpEvent);
+        canvasElement.removeEventListener("mouseleave", handleMouseUpEvent);
       }
     };
-  }, []);
+  }, [selectedTool]);
 
   const handleExportClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -539,8 +574,8 @@ const Editor = () => {
                 </MenuItem>
               </Menu>
               <ButtonIcon title="Масштабирование" onClick={openModal}>Масштабировать</ButtonIcon>
-              {/* <ButtonIcon title="Кривые" onClick={openCurvesModal}>Кривые</ButtonIcon>
-              <ButtonIcon title="Фильтрация" onClick={openFilterModal}>Фильтрация</ButtonIcon> */}
+              <ButtonIcon title="Кривые" onClick={openCurvesModal}>Кривые</ButtonIcon>
+              <ButtonIcon title="Фильтрация" onClick={openFilterModal}>Фильтрация</ButtonIcon>
               <ButtonIcon title="Отменить" onClick={undo} disabled={historyIndex <= 0}>
                 <UndoIcon />
               </ButtonIcon>
@@ -599,7 +634,7 @@ const Editor = () => {
                 setIsContextModalOpen(true);
               }
             }}
-            active={selectedTool === tool || (isMouseWheel && tool === "hand")}
+            active={selectedTool === tool || (isMouseWheelDown && tool === "hand")}
             tooltip={tool === "cursor" ? "Обычный указатель для работы с объектами и сброса других инструментов." : tool === "pipette" ? "Инструмент пипетки позволяет выбирать цвета изображения." : "Инструмент для перемещения области просмотра изображения."}
           >
             <svg className="tool-panel__icon" role="img" fill="currentColor" viewBox={tool === "cursor" ? "0 0 18 18" : tool === "pipette" ? "0 0 18 18" : "0 0 512 512"} width="18" height="18" aria-hidden="true" focusable="false">
@@ -647,7 +682,7 @@ const Editor = () => {
               <div className="status-bar__color" style={{ backgroundColor: index === 0 ? pipetteColor1 : index === 1 ? pipetteColor2 : currentColor }}></div>
               <p className="status-bar__text">&nbsp;{index === 0 ? pipetteColor1 : index === 1 ? pipetteColor2 : currentColor}</p>
               <p className="status-bar__text">&nbsp;{(index === 0 ? pipetteColor1 : index === 1 ? pipetteColor2 : currentColor) && rgbToXyz(extractRGB(index === 0 ? pipetteColor1 : index === 1 ? pipetteColor2 : currentColor))}</p>
-              <p className="status-bar__text">&nbsp;{(index === 0 ? pipetteColor1 : index === 1 ? pipetteColor2 : currentColor) && rgbToLab(extractRGB(index === 0 ? pipetteColor1 : index === 1 ? pipetteColor2 : currentColor))}</p>
+              {/* <p className="status-bar__text">&nbsp;{(index === 0 ? pipetteColor1 : index === 1 ? pipetteColor2 : currentColor) && rgbToLab(extractRGB(index === 0 ? pipetteColor1 : index === 1 ? pipetteColor2 : currentColor))}</p> */}
               {index < 2 && <p className="status-bar__text">&nbsp;({imageCoordinates[index === 0 ? "base" : "extra"].x.toFixed(0)}, {imageCoordinates[index === 0 ? "base" : "extra"].y.toFixed(0)})</p>}
             </div>
           ))}
@@ -656,7 +691,7 @@ const Editor = () => {
           </p>
         </div>
       </ContextModal>
-      <div className={`editor__workspace workspace${toolActive === "hand" ? " workspace--hand" : ""}`}>
+      <div className={`editor__workspace workspace${toolActive === "hand" || isMouseWheelDown ? " workspace--hand" : ""}`}>
         <canvas
           className={`workspace__canvas${toolActive === "pipette" ? " workspace__canvas--pipette" : ""}`}
           ref={canvas}
@@ -672,7 +707,7 @@ const Editor = () => {
           onMouseUp={handleMouseUpEvent}
           onKeyDown={!isModalOpen ? handleKeyDownEvent : null}
           onKeyUp={!isModalOpen ? handleKeyUpEvent : null}
-          style={{ cursor: toolActive === "hand" ? "grab" : toolActive === "pipette" ? "crosshair" : "default" }}
+          style={{ cursor: toolActive === "hand" || isMouseWheelDown ? "grab" : toolActive === "pipette" ? "crosshair" : "default" }}
         />
       </div>
       <div className="editor__status-bar status-bar">
@@ -680,7 +715,13 @@ const Editor = () => {
           <>
             <span className="status-bar__text">Разрешение: {Math.round(dimensions.width)}&nbsp;x&nbsp;{Math.round(dimensions.height)}&nbsp;px</span>
             <span className="status-bar__text">Размер файла: {fileSize}</span>
-            <span className="status-bar__text">Координаты: x&nbsp;{cursor.x}; y&nbsp;{cursor.y}</span>
+            <span className="status-bar__text">
+              Координаты: 
+              {imageCoords.x !== null && imageCoords.y !== null
+                ? `x ${imageCoords.x}; y ${imageCoords.y}`
+                : "вне изображения"
+              }
+            </span>
           </>
         )}
       </div>

@@ -7,7 +7,7 @@ export const updateTranslation = (animationFrameId, canvasTranslation, setCanvas
     const widthScale = wsWidth / width;
     const heightScale = wsHeight / height;
     
-    console.log(dx, dy, width, height, widthScale*scaleFactor, heightScale)
+    // console.log(dx, dy, width, height, widthScale*scaleFactor, heightScale)
     let newX = canvasTranslation.x + dx;
     let newY = canvasTranslation.y + dy;
     if (width * -1 > newX) {

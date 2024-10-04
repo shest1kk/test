@@ -1,32 +1,16 @@
-export const updateTranslation = (animationFrameId, canvasTranslation, setCanvasTranslation, dx, dy, width, height, scaleFactor) => {
+export const updateTranslation = (animationFrameId, canvasTranslation, setCanvasTranslation, imagePosition, setImagePosition, dx, dy) => {
     if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
     }
-    const wsWidth = document.querySelector('.workspace').offsetWidth;
-    const wsHeight = document.querySelector('.workspace').offsetHeight;
-    const widthScale = wsWidth / width;
-    const heightScale = wsHeight / height;
-    
-    // console.log(dx, dy, width, height, widthScale*scaleFactor, heightScale)
-    let newX = canvasTranslation.x + dx;
-    let newY = canvasTranslation.y + dy;
-    if (width * -1 > newX) {
-        newX = width * -1 + 2
-    }
-    if (newX > width) {
-        newX = width - 2
-    }
-    if (height * -1 > newY) {
-        newY = height * -1 + 2
-    }
-    if (newY > height) {
-        newY = height - 2
-    }
     animationFrameId.current = requestAnimationFrame(() => {
-        setCanvasTranslation({
-            x: newX,
-            y: newY
-        });
+        setCanvasTranslation(prevTranslation => ({
+            x: prevTranslation.x + dx,
+            y: prevTranslation.y + dy
+        }));
+        setImagePosition(prevPosition => ({
+            x: prevPosition.x + dx,
+            y: prevPosition.y + dy
+        }));
     });
 };
 
@@ -80,7 +64,7 @@ export const handleKeyUp = (toolActive, canvasTranslation, setCanvasTranslation,
             case "ArrowRight":
             case "ArrowUp":
             case "ArrowDown":
-                // Остановить перемещение при отпускании клавиши
+                // Остановить перемещение при отпускании к��авиши
                 setCanvasTranslation({
                     x: canvasTranslation.x,
                     y: canvasTranslation.y

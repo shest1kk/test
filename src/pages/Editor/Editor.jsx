@@ -73,14 +73,12 @@ const Editor = () => {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
-  const [imageCoords, setImageCoords] = useState({ x: null, y: null });
+  const [mouseCoords, setMouseCoords] = useState({ x: null, y: null });
 
   const [isMouseWheelDown, setIsMouseWheelDown] = useState(false);
   const [previousTool, setPreviousTool] = useState("cursor");
 
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
-
-  const [mouseCoords, setMouseCoords] = useState({ x: null, y: null });
 
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
@@ -171,7 +169,6 @@ const Editor = () => {
   const handleScaleChange = (event) => {
     const newScaleFactor = event.target.value;
     setScaleFactor(newScaleFactor);
-    console.log("Selected scaling method: Бикубический"); // Log the selected scaling method
   };
 
   // Эффект для обработки загрузки изображения и настройки холста
@@ -289,17 +286,8 @@ const Editor = () => {
     const imageX = imagePosition.x;
     const imageY = imagePosition.y;
 
-    console.log('Debug Info:');
-    console.log('Mouse position:', { x, y });
-    console.log('Image position:', { imageX, imageY });
-    console.log('Image dimensions:', { imageWidth, imageHeight });
-    console.log('Canvas translation:', canvasTranslation);
-    console.log('Scale factor:', scaleFactor);
-
     // Check if cursor is over the image
     if (x >= imageX && x < imageX + imageWidth && y >= imageY && y < imageY + imageHeight) {
-      setImageCoords({ x, y });
-
       // Add color picking logic when the pipette tool is active
       if (toolActive === "pipette") {
         const ctx = canvasElement.getContext('2d');
@@ -308,14 +296,13 @@ const Editor = () => {
         setCurrentColor(color);
       }
     } else {
-      console.log('Cursor is outside the image');
-      setImageCoords({ x: null, y: null });
+
     }
 
     if (isDragging && (toolActive === "hand" || isMouseWheelDown)) {
       const dx = e.clientX - rect.left - cursor.x;
       const dy = e.clientY - rect.top - cursor.y;
-      console.log('Dragging delta:', { dx, dy });
+
       updateTranslation(animationFrameId, canvasTranslation, setCanvasTranslation, imagePosition, setImagePosition, dx, dy);
     }
   }, [isDragging, toolActive, isMouseWheelDown, cursor.x, cursor.y, canvasTranslation, imagePosition, dimensions, scaleFactor]);
@@ -513,7 +500,7 @@ const Editor = () => {
   }, [image]);
 
   const updateImage = (newImage, newFileSize) => {
-    console.log(newImage);
+
     setImage(newImage);
     setFileSize(formatFileSize(newFileSize));
     localStorage.setItem('lastEditedImage', newImage);
@@ -588,7 +575,6 @@ const Editor = () => {
         image={image}
         dimensions={dimensions}
         fileSize={fileSize}
-        imageCoords={imageCoords}
         mouseCoords={mouseCoords}
       />
       <Modal isOpen={isModalOpen} onClose={closeModal} title="Масштабирование изображения">

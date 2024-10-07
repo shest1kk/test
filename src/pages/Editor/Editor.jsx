@@ -209,12 +209,17 @@ const Editor = () => {
 
       const drawImage = () => {
         context.current.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        
+        // Calculate center position
+        const centerX = (canvasElement.width - scaledWidth) / 2 + imagePosition.x; // Add imagePosition.x
+        const centerY = (canvasElement.height - scaledHeight) / 2 + imagePosition.y; // Add imagePosition.y
+
         context.current.drawImage(
-          img,
-          imagePosition.x,
-          imagePosition.y,
-          scaledWidth,
-          scaledHeight
+            img,
+            centerX,
+            centerY,
+            scaledWidth,
+            scaledHeight
         );
         requestAnimationFrame(drawImage);
       };
@@ -283,8 +288,8 @@ const Editor = () => {
     // Calculate image position and dimensions
     const imageWidth = dimensions.width * (scaleFactor / 100);
     const imageHeight = dimensions.height * (scaleFactor / 100);
-    const imageX = imagePosition.x;
-    const imageY = imagePosition.y;
+    const imageX = (canvasElement.width - imageWidth) / 2 + imagePosition.x; // Update to use imagePosition
+    const imageY = (canvasElement.height - imageHeight) / 2 + imagePosition.y; // Update to use imagePosition
 
     // Check if cursor is over the image
     if (x >= imageX && x < imageX + imageWidth && y >= imageY && y < imageY + imageHeight) {
